@@ -208,7 +208,7 @@
 
     .control-row {
       width: 100%;
-      height: 58%;
+      height: 100%;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -220,9 +220,8 @@
       border: 1px solid rgba(255, 228, 244, 0.7);
       box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.35), 0 0 8px rgba(87, 24, 64, 0.35);
       background: linear-gradient(160deg, rgba(255, 164, 220, 0.95), rgba(148, 76, 188, 0.9));
-      width: auto;
-      height: 100%;
-      aspect-ratio: 1 / 1;
+      width: 52px;
+      height: 52px;
       color: #430a33;
       font-weight: 700;
       font-size: clamp(14px, 1.5vw, 22px);
@@ -279,7 +278,7 @@
       </div>
     </div>
 
-    <div class="controls-zone">
+    <div class="controls-zone" id="controls-zone">
       <div class="control-row">
         <button class="dir-btn" type="button" data-dir="left" aria-label="Move left"><span class="arrow">←</span></button>
         <button class="dir-btn" type="button" data-dir="up" aria-label="Move up"><span class="arrow">↑</span></button>
@@ -307,6 +306,7 @@
       const overlayEl = document.getElementById("overlay");
       const overlayTextEl = document.getElementById("overlay-text");
       const overlayBtnEl = document.getElementById("overlay-btn");
+      const controlsZoneEl = document.getElementById("controls-zone");
       const dirButtons = Array.from(document.querySelectorAll(".dir-btn"));
 
       // Sprite and gameplay tuning constants.
@@ -710,6 +710,22 @@
       }
 
       // Pink panel controls: 4 square directional buttons in one row.
+      function syncControlButtonSizing() {
+        const zoneHeight = controlsZoneEl.clientHeight || 52;
+        const zoneWidth = controlsZoneEl.clientWidth || 280;
+        const sizeByHeight = zoneHeight * 0.78;
+        const sizeByWidth = zoneWidth / 7.6;
+        const buttonSize = Math.max(26, Math.min(sizeByHeight, sizeByWidth, 78));
+        const gap = Math.max(8, Math.min(18, buttonSize * 0.28));
+        const row = controlsZoneEl.querySelector(".control-row");
+        if (row) row.style.gap = gap + "px";
+        for (const button of dirButtons) {
+          button.style.width = buttonSize + "px";
+          button.style.height = buttonSize + "px";
+          button.style.fontSize = Math.max(14, Math.min(26, buttonSize * 0.44)) + "px";
+        }
+      }
+
       function setButtonDirection(dir) {
         buttonDir = { x: 0, y: 0 };
         for (const button of dirButtons) button.classList.remove("active");
@@ -741,11 +757,13 @@
       window.addEventListener("pointerup", function () {
         setButtonDirection(null);
       });
+      window.addEventListener("resize", syncControlButtonSizing);
       overlayBtnEl.addEventListener("click", function () {
         startRound();
       });
 
       buildSparkles();
+      syncControlButtonSizing();
       resetGame();
       requestAnimationFrame(loop);
     })();
