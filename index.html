@@ -12,7 +12,7 @@
       --screen-width: 45.05%;
       --screen-height: 24.90%;
       --controls-left: 24.9%;
-      --controls-top: 60.4%;
+      --controls-top: 62.5%;
       --controls-width: 50.2%;
       --controls-height: 12.6%;
       --hud-color: #ffdff9;
@@ -172,6 +172,13 @@
       flex-direction: column;
       gap: 8px;
       line-height: 1.32;
+      overflow: hidden;
+    }
+
+    #overlay-text {
+      max-width: 95%;
+      margin: 0 auto;
+      word-break: break-word;
     }
 
     .overlay.show {
@@ -210,7 +217,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      transform: translateY(-0.7%);
+      transform: translateY(2.4%);
     }
 
     .control-row {
@@ -307,6 +314,7 @@
       const layer = document.getElementById("layer");
       const sparklesEl = document.getElementById("sparkles");
       const popupsEl = document.getElementById("popups");
+      const hudEl = document.querySelector(".hud");
       const scoreEl = document.getElementById("score");
       const timerEl = document.getElementById("timer");
       const statusEl = document.getElementById("status");
@@ -717,19 +725,33 @@
       }
 
       // Pink panel controls: 4 square directional buttons in one row.
+      function syncScreenTypography() {
+        const screenH = screenEl.clientHeight || 120;
+        const screenW = screenEl.clientWidth || 220;
+
+        const hudSize = Math.max(7, Math.min(13, screenH * 0.085));
+        const statusSize = Math.max(7, Math.min(12, screenH * 0.07));
+        const overlaySize = Math.max(9, Math.min(22, Math.min(screenW * 0.06, screenH * 0.15)));
+        const overlayButtonSize = Math.max(10, Math.min(16, screenH * 0.1));
+
+        hudEl.style.fontSize = hudSize + "px";
+        statusEl.style.fontSize = statusSize + "px";
+        overlayTextEl.style.fontSize = overlaySize + "px";
+        overlayBtnEl.style.fontSize = overlayButtonSize + "px";
+      }
+
       function syncControlButtonSizing() {
         const zoneHeight = controlsZoneEl.clientHeight || 52;
-        const zoneWidth = controlsZoneEl.clientWidth || 280;
-        const sizeByHeight = zoneHeight * 0.78;
-        const sizeByWidth = zoneWidth / 7.6;
-        const buttonSize = Math.max(26, Math.min(sizeByHeight, sizeByWidth, 78));
-        const gap = Math.max(8, Math.min(18, buttonSize * 0.28));
+        // Keep exact proportional geometry across up/down scaling.
+        // Buttons and spacing are tied only to control-zone height.
+        const buttonSize = zoneHeight * 0.7;
+        const gap = zoneHeight * 0.2;
         const row = controlsZoneEl.querySelector(".control-row");
         if (row) row.style.gap = gap + "px";
         for (const button of dirButtons) {
           button.style.width = buttonSize + "px";
           button.style.height = buttonSize + "px";
-          button.style.fontSize = Math.max(14, Math.min(26, buttonSize * 0.44)) + "px";
+          button.style.fontSize = buttonSize * 0.44 + "px";
         }
       }
 
@@ -765,12 +787,14 @@
         setButtonDirection(null);
       });
       window.addEventListener("resize", syncControlButtonSizing);
+      window.addEventListener("resize", syncScreenTypography);
       overlayBtnEl.addEventListener("click", function () {
         startRound();
       });
 
       buildSparkles();
       syncControlButtonSizing();
+      syncScreenTypography();
       resetGame();
       requestAnimationFrame(loop);
     })();
