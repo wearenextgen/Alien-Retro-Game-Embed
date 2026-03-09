@@ -36,6 +36,15 @@
       padding: 10px;
     }
 
+    /* Embed mode removes any page framing so iframe content is fully transparent. */
+    body.embed {
+      min-height: 0;
+      display: block;
+      padding: 0;
+      overflow: hidden;
+      background: transparent;
+    }
+
     .console {
       position: relative;
       width: min(var(--console-max), 96vw);
@@ -44,6 +53,12 @@
       overflow: hidden;
       user-select: none;
       -webkit-user-select: none;
+    }
+
+    body.embed .console {
+      width: 100vw;
+      max-width: none;
+      margin: 0;
     }
 
     /* Playfield overlay: positioned directly on the center black screen of console.png */
@@ -276,6 +291,12 @@
 
   <script>
     (function () {
+      const params = new URLSearchParams(window.location.search);
+      const isIframe = window.self !== window.top;
+      if (isIframe || params.get("embed") === "1") {
+        document.body.classList.add("embed");
+      }
+
       const screenEl = document.getElementById("screen");
       const layer = document.getElementById("layer");
       const sparklesEl = document.getElementById("sparkles");
