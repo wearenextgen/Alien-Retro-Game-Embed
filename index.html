@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alien Console Arcade</title>
+  <style>
+    :root {
+      --console-max: 1200px;
+      --screen-left: 27.47%;
+      --screen-top: 33.69%;
+      --screen-width: 45.05%;
+      --screen-height: 24.90%;
+      --controls-left: 24.9%;
+      --controls-top: 61.9%;
+      --controls-width: 50.2%;
+      --controls-height: 12.6%;
+      --hud-color: #ffdff9;
+      --hud-shadow: 0 0 6px rgba(0, 0, 0, 0.95);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      background: transparent;
+      font-family: "Courier New", "Lucida Console", monospace;
+    }
+
+    body {
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      padding: 10px;
+    }
+
+    .console {
+      position: relative;
+      width: min(var(--console-max), 96vw);
+      aspect-ratio: 1536 / 1024;
+      background: url("console.png") center / contain no-repeat;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Playfield overlay: positioned directly on the center black screen of console.png */
+    .screen {
+      position: absolute;
+      left: var(--screen-left);
+      top: var(--screen-top);
+      width: var(--screen-width);
+      height: var(--screen-height);
+      border-radius: 8px;
+      overflow: hidden;
+      isolation: isolate;
+      background: radial-gradient(circle at 50% 50%, rgba(20, 20, 36, 0.45), rgba(0, 0, 0, 0.2));
+    }
+
+    .sparkle-layer,
+    .sprite-layer {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+
+    .sprite {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      object-fit: contain;
+      pointer-events: none;
+      filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.18));
+      animation: bob 2.4s ease-in-out infinite;
+      will-change: left, top;
+    }
+
+    .collectible {
+      animation-duration: 1.8s;
+    }
+
+    .sparkle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.85);
+      box-shadow: 0 0 8px rgba(255, 235, 252, 0.95);
+      animation: twinkle 2.2s ease-in-out infinite;
+      opacity: 0.2;
+    }
+
+    .popup-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 26;
+    }
+
+    .popup {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      font-size: clamp(10px, 1.2vw, 14px);
+      color: #ffe77f;
+      text-shadow: 0 0 6px rgba(0, 0, 0, 0.95);
+      animation: popup-float 0.9s ease-out forwards;
+      white-space: nowrap;
+    }
+
+    .hud {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      top: 6px;
+      display: flex;
+      justify-content: space-between;
+      font-size: clamp(10px, 1.15vw, 13px);
+      color: var(--hud-color);
+      text-shadow: var(--hud-shadow);
+      pointer-events: none;
+      z-index: 20;
+      letter-spacing: 0.03em;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .status {
+      position: absolute;
+      top: 24px;
+      left: 8px;
+      font-size: clamp(10px, 1vw, 12px);
+      color: #c0f9ff;
+      text-shadow: var(--hud-shadow);
+      z-index: 20;
+      pointer-events: none;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: clamp(12px, 1.3vw, 16px);
+      color: #ffe8ff;
+      text-shadow: 0 0 8px rgba(0, 0, 0, 1);
+      background: radial-gradient(circle at center, rgba(0, 0, 0, 0.44), rgba(0, 0, 0, 0.74));
+      z-index: 30;
+      padding: 12px;
+      letter-spacing: 0.05em;
+      font-weight: 700;
+      text-transform: uppercase;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .overlay.show {
+      display: flex;
+    }
+
+    .overlay button {
+      border: 1px solid rgba(255, 216, 242, 0.8);
+      background: linear-gradient(160deg, rgba(255, 164, 220, 0.95), rgba(148, 76, 188, 0.9));
+      color: #ffefff;
+      font-family: inherit;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      text-transform: uppercase;
+      box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.3), 0 0 8px rgba(0, 0, 0, 0.35);
+    }
+
+    /* Pink control panel zone: positioned over the lower pink area under the screen */
+    .controls-zone {
+      position: absolute;
+      left: var(--controls-left);
+      top: var(--controls-top);
+      width: var(--controls-width);
+      height: var(--controls-height);
+      z-index: 40;
+      pointer-events: auto;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 5.5%;
+    }
+
+    .control-row {
+      width: 100%;
+      height: 58%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: clamp(10px, 1.4vw, 18px);
+    }
+
+    .dir-btn {
+      border-radius: 10px;
+      border: 1px solid rgba(255, 228, 244, 0.7);
+      box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.35), 0 0 8px rgba(87, 24, 64, 0.35);
+      background: linear-gradient(160deg, rgba(255, 164, 220, 0.95), rgba(148, 76, 188, 0.9));
+      width: auto;
+      height: 100%;
+      aspect-ratio: 1 / 1;
+      color: #430a33;
+      font-weight: 700;
+      font-size: clamp(14px, 1.5vw, 22px);
+      cursor: pointer;
+      transition: transform 0.08s ease, filter 0.15s ease;
+      display: grid;
+      place-items: center;
+      line-height: 1;
+    }
+
+    .dir-btn:active,
+    .dir-btn.active {
+      transform: translateY(1px) scale(0.97);
+      filter: brightness(0.92);
+    }
+
+    .dir-btn .arrow {
+      color: #ffe6ff;
+      text-shadow: 0 0 6px rgba(84, 21, 81, 0.9);
+      transform: translateY(-1px);
+    }
+
+    @keyframes bob {
+      0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+      50% { transform: translate(-50%, -50%) translateY(-2px); }
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.2; transform: scale(0.8); }
+      50% { opacity: 0.75; transform: scale(1.2); }
+    }
+
+    @keyframes popup-float {
+      0% { opacity: 0; transform: translate(-50%, -35%); }
+      20% { opacity: 1; }
+      100% { opacity: 0; transform: translate(-50%, -160%); }
+    }
+  </style>
+</head>
+<body>
+  <div class="console">
+    <div class="screen" id="screen">
+      <div class="hud">
+        <div id="score">Cherries: 0 / 20</div>
+        <div id="timer">Time: 40s</div>
+      </div>
+      <div class="status" id="status">Clarinet: inactive</div>
+      <div class="sparkle-layer" id="sparkles"></div>
+      <div class="sprite-layer" id="layer"></div>
+      <div class="popup-layer" id="popups"></div>
+      <div class="overlay show" id="overlay">
+        <div id="overlay-text">Help Klarinos get 20 cherries in 40 seconds</div>
+        <button id="overlay-btn" type="button">Start</button>
+      </div>
+    </div>
+
+    <div class="controls-zone">
+      <div class="control-row">
+        <button class="dir-btn" type="button" data-dir="left" aria-label="Move left"><span class="arrow">←</span></button>
+        <button class="dir-btn" type="button" data-dir="up" aria-label="Move up"><span class="arrow">↑</span></button>
+        <button class="dir-btn" type="button" data-dir="down" aria-label="Move down"><span class="arrow">↓</span></button>
+        <button class="dir-btn" type="button" data-dir="right" aria-label="Move right"><span class="arrow">→</span></button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const screenEl = document.getElementById("screen");
+      const layer = document.getElementById("layer");
+      const sparklesEl = document.getElementById("sparkles");
+      const popupsEl = document.getElementById("popups");
+      const scoreEl = document.getElementById("score");
+      const timerEl = document.getElementById("timer");
+      const statusEl = document.getElementById("status");
+      const overlayEl = document.getElementById("overlay");
+      const overlayTextEl = document.getElementById("overlay-text");
+      const overlayBtnEl = document.getElementById("overlay-btn");
+      const dirButtons = Array.from(document.querySelectorAll(".dir-btn"));
+
+      // Sprite and gameplay tuning constants.
+      const CONFIG = {
+        // Sprite scaling as percentage of playfield width.
+        PLAYER_SIZE: 20,
+        SPHYNX_SIZE: 15,
+        CHERRY_SIZE: 8,
+        CLARINET_SIZE: 9,
+
+        TARGET_CHERRIES: 20,
+        ROUND_SECONDS: 40,
+
+        // Spawn density.
+        MAX_CHERRIES: 8,
+
+        // Spawn timings (seconds).
+        CHERRY_SPAWN_MIN: 0.7,
+        CHERRY_SPAWN_MAX: 1.3,
+        CLARINET_SPAWN_MIN: 5.0,
+        CLARINET_SPAWN_MAX: 7.5,
+
+        // Lifetime timings (seconds).
+        CHERRY_LIFETIME_MIN: 4.0,
+        CHERRY_LIFETIME_MAX: 6.0,
+        CLARINET_LIFETIME_MIN: 3.0,
+        CLARINET_LIFETIME_MAX: 4.0,
+        POWER_DURATION: 6.5,
+
+        // Movement speed in normalized playfield units per second.
+        PLAYER_SPEED: 42,
+        SPHYNX_SPEED: 12,
+
+        PLAYER_HIT_RADIUS: 7.4,
+        SPHYNX_HIT_RADIUS: 6.8,
+        // Extra hit padding so collectible pickups use broader PNG bounds.
+        CHERRY_SENSOR_PAD: 1.8,
+        CLARINET_SENSOR_PAD: 2.2
+      };
+
+      // Playfield is a normalized 0..100 coordinate system, clipped to the screen overlay.
+      const WORLD = { min: 6, max: 94 };
+
+      const sprites = {
+        player: "character player.png",
+        sphynx: "sphynx.png",
+        cherry: "cherries.png",
+        clarinet: "clarinet.png"
+      };
+
+      const keys = {};
+      let buttonDir = { x: 0, y: 0 };
+      const state = {
+        cherriesCollected: 0,
+        gameOver: false,
+        mode: "start",
+        now: 0,
+        timeLeft: CONFIG.ROUND_SECONDS,
+        powerUntil: 0,
+        boostUntil: 0,
+        nextCherryAt: 0,
+        nextClarinetAt: 0,
+        cherries: [],
+        clarinet: null
+      };
+
+      const player = makeSprite("player", sprites.player, CONFIG.PLAYER_SIZE, 28, 58);
+      const sphynx = makeSprite("sphynx", sprites.sphynx, CONFIG.SPHYNX_SIZE, 74, 30);
+
+      function rand(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function clamp(v, min, max) {
+        return Math.max(min, Math.min(max, v));
+      }
+
+      function makeSprite(kind, src, sizePercent, x, y) {
+        const el = document.createElement("img");
+        el.className = "sprite" + (kind === "cherry" || kind === "clarinet" ? " collectible" : "");
+        el.src = src;
+        el.alt = "";
+        el.style.width = sizePercent + "%";
+        layer.appendChild(el);
+        const obj = { kind, el, x, y, sizePercent, bornAt: 0, expiresAt: Infinity };
+        renderSprite(obj);
+        return obj;
+      }
+
+      function removeSprite(obj) {
+        if (obj && obj.el && obj.el.parentNode) {
+          obj.el.parentNode.removeChild(obj.el);
+        }
+      }
+
+      function renderSprite(obj) {
+        obj.el.style.left = obj.x + "%";
+        obj.el.style.top = obj.y + "%";
+      }
+
+      function popupAt(x, y, text, color) {
+        const node = document.createElement("div");
+        node.className = "popup";
+        node.textContent = text;
+        node.style.left = x + "%";
+        node.style.top = y + "%";
+        if (color) node.style.color = color;
+        popupsEl.appendChild(node);
+        setTimeout(function () {
+          if (node.parentNode) node.parentNode.removeChild(node);
+        }, 900);
+      }
+
+      function buildSparkles() {
+        for (let i = 0; i < 16; i += 1) {
+          const dot = document.createElement("div");
+          dot.className = "sparkle";
+          dot.style.left = rand(2, 98) + "%";
+          dot.style.top = rand(8, 96) + "%";
+          dot.style.animationDelay = rand(0, 2.2) + "s";
+          dot.style.animationDuration = rand(1.6, 3.2) + "s";
+          sparklesEl.appendChild(dot);
+        }
+      }
+
+      function randomSpawn() {
+        return {
+          x: rand(WORLD.min + 2, WORLD.max - 2),
+          y: rand(WORLD.min + 2, WORLD.max - 2)
+        };
+      }
+
+      function scheduleNextCherry() {
+        state.nextCherryAt = state.now + rand(CONFIG.CHERRY_SPAWN_MIN, CONFIG.CHERRY_SPAWN_MAX);
+      }
+
+      function scheduleNextClarinet() {
+        state.nextClarinetAt = state.now + rand(CONFIG.CLARINET_SPAWN_MIN, CONFIG.CLARINET_SPAWN_MAX);
+      }
+
+      function spawnCherry(force) {
+        if (!force && state.cherries.length >= CONFIG.MAX_CHERRIES) return;
+        const pos = randomSpawn();
+        const cherry = makeSprite("cherry", sprites.cherry, CONFIG.CHERRY_SIZE, pos.x, pos.y);
+        cherry.bornAt = state.now;
+        cherry.expiresAt = state.now + rand(CONFIG.CHERRY_LIFETIME_MIN, CONFIG.CHERRY_LIFETIME_MAX);
+        state.cherries.push(cherry);
+      }
+
+      function spawnClarinet(force) {
+        if (!force && state.clarinet) return;
+        if (state.clarinet) removeClarinet();
+        const pos = randomSpawn();
+        const clarinet = makeSprite("clarinet", sprites.clarinet, CONFIG.CLARINET_SIZE, pos.x, pos.y);
+        clarinet.bornAt = state.now;
+        clarinet.expiresAt = state.now + rand(CONFIG.CLARINET_LIFETIME_MIN, CONFIG.CLARINET_LIFETIME_MAX);
+        state.clarinet = clarinet;
+      }
+
+      function removeCherry(index) {
+        removeSprite(state.cherries[index]);
+        state.cherries.splice(index, 1);
+      }
+
+      function removeClarinet() {
+        removeSprite(state.clarinet);
+        state.clarinet = null;
+      }
+
+      function distance(a, b) {
+        return Math.hypot(a.x - b.x, a.y - b.y);
+      }
+
+      // Collision based on sprite bounds (AABB) instead of center-point distance.
+      // Coordinates are in normalized playfield percentages.
+      function spriteOverlap(a, b, padA, padB) {
+        const halfAw = a.sizePercent / 2 + (padA || 0);
+        const halfAh = a.sizePercent / 2 + (padA || 0);
+        const halfBw = b.sizePercent / 2 + (padB || 0);
+        const halfBh = b.sizePercent / 2 + (padB || 0);
+        return Math.abs(a.x - b.x) <= halfAw + halfBw && Math.abs(a.y - b.y) <= halfAh + halfBh;
+      }
+
+      function resetPositions() {
+        player.x = 28;
+        player.y = 58;
+        sphynx.x = 74;
+        sphynx.y = 30;
+        renderSprite(player);
+        renderSprite(sphynx);
+      }
+
+      function resetGame() {
+        state.cherriesCollected = 0;
+        state.gameOver = false;
+        state.mode = "start";
+        state.timeLeft = CONFIG.ROUND_SECONDS;
+        state.powerUntil = 0;
+        state.boostUntil = 0;
+        overlayTextEl.textContent = "Help Klarinos get 20 cherries in 40 seconds";
+        overlayBtnEl.textContent = "Start";
+        overlayEl.classList.add("show");
+        for (const ch of state.cherries) removeSprite(ch);
+        state.cherries = [];
+        removeClarinet();
+        resetPositions();
+        scheduleNextCherry();
+        scheduleNextClarinet();
+        for (let i = 0; i < 2; i += 1) spawnCherry(true);
+        spawnClarinet(true);
+        updateHud();
+      }
+
+      function startRound() {
+        state.mode = "running";
+        state.gameOver = false;
+        state.timeLeft = CONFIG.ROUND_SECONDS;
+        state.now = 0;
+        state.cherriesCollected = 0;
+        state.powerUntil = 0;
+        state.boostUntil = 0;
+        for (const ch of state.cherries) removeSprite(ch);
+        state.cherries = [];
+        removeClarinet();
+        resetPositions();
+        scheduleNextCherry();
+        scheduleNextClarinet();
+        for (let i = 0; i < 3; i += 1) spawnCherry(true);
+        spawnClarinet(true);
+        overlayEl.classList.remove("show");
+      }
+
+      function updatePlayer(dt) {
+        let mx = 0;
+        let my = 0;
+        if (keys.arrowleft || keys.a) mx -= 1;
+        if (keys.arrowright || keys.d) mx += 1;
+        if (keys.arrowup || keys.w) my -= 1;
+        if (keys.arrowdown || keys.s) my += 1;
+        mx += buttonDir.x;
+        my += buttonDir.y;
+        const mag = Math.hypot(mx, my) || 1;
+        mx /= mag;
+        my /= mag;
+        const speedBoost = state.now < state.boostUntil ? 1.35 : 1;
+        const speed = CONFIG.PLAYER_SPEED * speedBoost;
+        player.x = clamp(player.x + mx * speed * dt, WORLD.min, WORLD.max);
+        player.y = clamp(player.y + my * speed * dt, WORLD.min, WORLD.max);
+      }
+
+      function updateSphynx(dt) {
+        const target = nearestCherryOrPlayer();
+        let dx = target.x - sphynx.x;
+        let dy = target.y - sphynx.y;
+        const mag = Math.hypot(dx, dy) || 1;
+        dx /= mag;
+        dy /= mag;
+        const slowed = state.now < state.powerUntil ? 0.72 : 1;
+        sphynx.x = clamp(sphynx.x + dx * CONFIG.SPHYNX_SPEED * slowed * dt, WORLD.min, WORLD.max);
+        sphynx.y = clamp(sphynx.y + dy * CONFIG.SPHYNX_SPEED * slowed * dt, WORLD.min, WORLD.max);
+      }
+
+      function nearestCherryOrPlayer() {
+        if (state.cherries.length === 0) return player;
+        let best = state.cherries[0];
+        let bestDist = distance(sphynx, best);
+        for (let i = 1; i < state.cherries.length; i += 1) {
+          const d = distance(sphynx, state.cherries[i]);
+          if (d < bestDist) {
+            bestDist = d;
+            best = state.cherries[i];
+          }
+        }
+        return bestDist < 30 ? best : player;
+      }
+
+      function collectAndExpire() {
+        for (let i = state.cherries.length - 1; i >= 0; i -= 1) {
+          const cherry = state.cherries[i];
+          if (state.now >= cherry.expiresAt) {
+            removeCherry(i);
+            continue;
+          }
+          if (spriteOverlap(player, cherry, 0.9, CONFIG.CHERRY_SENSOR_PAD)) {
+            state.cherriesCollected += 1;
+            popupAt(cherry.x, cherry.y, "+1 CHERRY", "#ffe68d");
+            removeCherry(i);
+            continue;
+          }
+          if (spriteOverlap(sphynx, cherry, 0.6, CONFIG.CHERRY_SENSOR_PAD)) {
+            removeCherry(i);
+          }
+        }
+
+        if (state.clarinet) {
+          if (state.now >= state.clarinet.expiresAt) {
+            removeClarinet();
+          } else if (spriteOverlap(player, state.clarinet, 1.0, CONFIG.CLARINET_SENSOR_PAD)) {
+            state.powerUntil = state.now + CONFIG.POWER_DURATION;
+            state.boostUntil = state.now + CONFIG.POWER_DURATION;
+            popupAt(state.clarinet.x, state.clarinet.y, "CLARINET!", "#96f5ff");
+            removeClarinet();
+          } else if (spriteOverlap(sphynx, state.clarinet, 0.7, CONFIG.CLARINET_SENSOR_PAD)) {
+            removeClarinet();
+          }
+        }
+      }
+
+      function handlePlayerSphynxContact() {
+        if (distance(player, sphynx) > CONFIG.PLAYER_HIT_RADIUS + CONFIG.SPHYNX_HIT_RADIUS) return;
+        if (state.now < state.powerUntil) {
+          popupAt(sphynx.x, sphynx.y, "STUN", "#b1e6ff");
+          sphynx.x = WORLD.max - 4;
+          sphynx.y = WORLD.min + 6;
+        } else {
+          // No life loss on collision; just a soft bump to keep pressure without reset.
+          const dx = player.x - sphynx.x;
+          const dy = player.y - sphynx.y;
+          const mag = Math.hypot(dx, dy) || 1;
+          player.x = clamp(player.x + (dx / mag) * 4.5, WORLD.min, WORLD.max);
+          player.y = clamp(player.y + (dy / mag) * 4.5, WORLD.min, WORLD.max);
+        }
+      }
+
+      function spawnTick() {
+        if (state.now >= state.nextCherryAt) {
+          spawnCherry(false);
+          scheduleNextCherry();
+        }
+        if (state.now >= state.nextClarinetAt) {
+          spawnClarinet(false);
+          scheduleNextClarinet();
+        }
+      }
+
+      function updateHud() {
+        scoreEl.textContent = "Cherries: " + state.cherriesCollected + " / " + CONFIG.TARGET_CHERRIES;
+        timerEl.textContent = "Time: " + Math.max(0, Math.ceil(state.timeLeft)) + "s";
+        if (state.now < state.powerUntil) {
+          statusEl.textContent = "Clarinet power: active";
+          screenEl.style.boxShadow = "inset 0 0 22px rgba(126, 224, 255, 0.5)";
+        } else {
+          statusEl.textContent = "Clarinet: inactive";
+          screenEl.style.boxShadow = "none";
+        }
+      }
+
+      let lastTs = 0;
+      function loop(ts) {
+        if (!lastTs) lastTs = ts;
+        const dt = Math.min(0.05, (ts - lastTs) / 1000);
+        lastTs = ts;
+        state.now += dt;
+
+        if (!state.gameOver && state.mode === "running") {
+          state.timeLeft = Math.max(0, state.timeLeft - dt);
+          spawnTick();
+          updatePlayer(dt);
+          updateSphynx(dt);
+          collectAndExpire();
+          handlePlayerSphynxContact();
+          renderSprite(player);
+          renderSprite(sphynx);
+          for (const cherry of state.cherries) renderSprite(cherry);
+          if (state.clarinet) renderSprite(state.clarinet);
+
+          if (state.cherriesCollected >= CONFIG.TARGET_CHERRIES) {
+            state.gameOver = true;
+            state.mode = "win";
+            overlayTextEl.textContent = "You did it! Klarinos got 20 cherries.";
+            overlayBtnEl.textContent = "Play Again";
+            overlayEl.classList.add("show");
+          } else if (state.timeLeft <= 0) {
+            state.gameOver = true;
+            state.mode = "lose";
+            overlayTextEl.textContent = "Time up! Try again and get 20 cherries.";
+            overlayBtnEl.textContent = "Retry";
+            overlayEl.classList.add("show");
+          }
+          updateHud();
+        }
+        requestAnimationFrame(loop);
+      }
+
+      function handleKeyDown(event) {
+        const key = event.key.toLowerCase();
+        keys[key] = true;
+        if (["arrowleft", "arrowright", "arrowup", "arrowdown", " "].includes(key)) {
+          event.preventDefault();
+        }
+        if (key === "r") {
+          resetGame();
+        }
+        if (key === "enter" && state.mode === "start") {
+          startRound();
+        }
+      }
+
+      function handleKeyUp(event) {
+        keys[event.key.toLowerCase()] = false;
+      }
+
+      // Pink panel controls: 4 square directional buttons in one row.
+      function setButtonDirection(dir) {
+        buttonDir = { x: 0, y: 0 };
+        for (const button of dirButtons) button.classList.remove("active");
+        if (!dir) return;
+        const target = dirButtons.find((button) => button.dataset.dir === dir);
+        if (target) target.classList.add("active");
+        if (dir === "left") buttonDir.x = -1;
+        if (dir === "right") buttonDir.x = 1;
+        if (dir === "up") buttonDir.y = -1;
+        if (dir === "down") buttonDir.y = 1;
+      }
+
+      for (const button of dirButtons) {
+        const dir = button.dataset.dir;
+        button.addEventListener("pointerdown", function (event) {
+          event.preventDefault();
+          setButtonDirection(dir);
+        });
+        button.addEventListener("pointerup", function () {
+          setButtonDirection(null);
+        });
+        button.addEventListener("pointerleave", function () {
+          setButtonDirection(null);
+        });
+      }
+
+      window.addEventListener("keydown", handleKeyDown);
+      window.addEventListener("keyup", handleKeyUp);
+      window.addEventListener("pointerup", function () {
+        setButtonDirection(null);
+      });
+      overlayBtnEl.addEventListener("click", function () {
+        startRound();
+      });
+
+      buildSparkles();
+      resetGame();
+      requestAnimationFrame(loop);
+    })();
+  </script>
+</body>
+</html>
